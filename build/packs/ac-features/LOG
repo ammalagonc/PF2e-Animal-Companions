@@ -1,1 +1,13 @@
 2024/12/29-13:26:09.260 3a7c Delete type=3 #1
+2024/12/29-13:27:44.031 1f28 Level-0 table #15: started
+2024/12/29-13:27:44.031 1f28 Level-0 table #15: 0 bytes OK
+2024/12/29-13:27:44.032 1f28 Delete type=0 #4
+2024/12/29-13:27:44.032 1f28 Delete type=0 #13
+2024/12/29-13:27:44.032 1f28 Delete type=3 #2
+2024/12/29-13:27:44.037 1f28 Manual compaction at level-0 from '!items!0i2ZSrRpjKG0KV4U' @ 72057594037927935 : 1 .. '!items!zF6bLjVwj7Njkqan' @ 0 : 0; will stop at '!items!zF6bLjVwj7Njkqan' @ 46 : 1
+2024/12/29-13:27:44.037 1f28 Compacting 1@0 + 0@1 files
+2024/12/29-13:27:44.040 1f28 Generated table #16@0: 114 keys, 88666 bytes
+2024/12/29-13:27:44.040 1f28 Compacted 1@0 + 0@1 files => 88666 bytes
+2024/12/29-13:27:44.041 1f28 compacted to: files[ 0 1 0 0 0 0 0 ]
+2024/12/29-13:27:44.041 1f28 Delete type=2 #5
+2024/12/29-13:27:44.047 1f28 Manual compaction at level-0 from '!items!zF6bLjVwj7Njkqan' @ 46 : 1 .. '!items!zF6bLjVwj7Njkqan' @ 0 : 0; will stop at (end)
