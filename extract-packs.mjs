@@ -2,6 +2,7 @@ import { extractPack } from "@foundryvtt/foundryvtt-cli";
 import { existsSync } from "fs";
 import fs from "fs/promises";
 import path from "path";
+import { pathToFileURL } from "url";
 
 const outDir = path.resolve(process.cwd(), "build");
 const packsCompiled = path.resolve(outDir, "packs/");
@@ -35,3 +36,14 @@ for (const pack of packFolders) {
 }
 
 console.log("Extraction Complete");
+
+const args = process.argv.slice(2);
+if (args.includes("all")) {
+    const starfindPath = path.resolve(process.cwd(), "starfind.mjs");
+    if (existsSync(starfindPath)) {
+        console.log("Running starfind conversion after extraction...");
+        await import(pathToFileURL(starfindPath).href);
+    } else {
+        console.warn("starfind.mjs not found in repository root; cannot run Starfinder conversion.");
+    }
+}

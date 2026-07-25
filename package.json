@@ -5,6 +5,7 @@
   "scripts": {
     "build": "node build.mjs",
     "extractPacks": "node extract-packs.mjs",
+    "extractPacks:all": "node extract-packs.mjs all",
     "link": "node link.mjs"
   },
   "author": "Ian Blackstone",
