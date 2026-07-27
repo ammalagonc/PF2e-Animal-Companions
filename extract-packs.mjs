@@ -4,6 +4,29 @@ import fs from "fs/promises";
 import path from "path";
 import { pathToFileURL } from "url";
 
+function toCrLf(text) {
+    return text.replace(/\r\n|\n/g, "\r\n");
+}
+
+async function normalizeJsonFiles(targetDir) {
+    const entries = await fs.readdir(targetDir, { withFileTypes: true });
+    for (const entry of entries) {
+        const entryPath = path.resolve(targetDir, entry.name);
+        if (entry.isDirectory()) {
+            await normalizeJsonFiles(entryPath);
+            continue;
+        }
+
+        if (!entry.isFile() || !entry.name.toLowerCase().endsWith(".json")) continue;
+
+        const currentContent = await fs.readFile(entryPath, "utf8");
+        const normalizedContent = toCrLf(currentContent);
+        if (currentContent !== normalizedContent) {
+            await fs.writeFile(entryPath, normalizedContent);
+        }
+    }
+}
+
 const outDir = path.resolve(process.cwd(), "build");
 const packsCompiled = path.resolve(outDir, "packs/");
 if (!existsSync(packsCompiled)) {
@@ -34,6 +57,9 @@ for (const pack of packFolders) {
     console.log(`Extracting pack: ${pack}`);
     await extractPack(path.resolve(packsCompiled, pack), `packs/${pack}`, {jsonOptions: {replacer: replacer, space: 2}});
 }
+
+await normalizeJsonFiles(path.resolve(process.cwd(), "packs"));
+await normalizeJsonFiles(path.resolve(process.cwd(), "build", "packs"));
 
 console.log("Extraction Complete");
 

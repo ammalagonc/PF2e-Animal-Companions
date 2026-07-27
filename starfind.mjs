@@ -19,6 +19,31 @@ const LINK_REPLACEMENTS = [
     ["sf2e.", "pf2e-anachronism."]
 ];
 
+function toCrLf(text) {
+    return text.replace(/\r\n|\n/g, "\r\n");
+}
+
+async function normalizeJsonFiles(targetDir) {
+    if (!existsSync(targetDir)) return;
+
+    const entries = await fs.readdir(targetDir, { withFileTypes: true });
+    for (const entry of entries) {
+        const entryPath = path.resolve(targetDir, entry.name);
+        if (entry.isDirectory()) {
+            await normalizeJsonFiles(entryPath);
+            continue;
+        }
+
+        if (!entry.isFile() || !entry.name.toLowerCase().endsWith(".json")) continue;
+
+        const currentContent = await fs.readFile(entryPath, "utf8");
+        const normalizedContent = toCrLf(currentContent);
+        if (currentContent !== normalizedContent) {
+            await fs.writeFile(entryPath, normalizedContent);
+        }
+    }
+}
+
 function replaceCompendiumLinks(str) {
     let replaced = false;
     for (const [from, to] of LINK_REPLACEMENTS) {
@@ -39,8 +64,9 @@ async function fixLinksInPack(packPath) {
         const filePath = path.resolve(packPath, file.name);
         let content = await fs.readFile(filePath, 'utf8');
         const result = replaceCompendiumLinks(content);
-        if (result.replaced) {
-            await fs.writeFile(filePath, result.str);
+        const normalizedContent = toCrLf(result.str);
+        if (result.replaced || content !== normalizedContent) {
+            await fs.writeFile(filePath, normalizedContent);
             console.log(`Fixed compendium links in ${filePath}`);
         }
     }
@@ -66,7 +92,7 @@ for (const addedPack of toBeAdded) {
 }
 
 // Write the new data to the manifest
-await fs.writeFile("module.json", JSON.stringify(data, null, 4))
+await fs.writeFile("module.json", toCrLf(JSON.stringify(data, null, 4)))
 
 console.log("Checking for extracted data structure")
 // Make a pack folder for each pack if they don't exist
@@ -139,13 +165,16 @@ for (const pfPack of pfPacks) {
     await fixLinksInPack(targetPackPath);
 }
 
+await normalizeJsonFiles(path.resolve(process.cwd(), "packs"));
+await normalizeJsonFiles(path.resolve(process.cwd(), "build", "packs"));
+
 console.log("Starfinder conversion completed!")
 console.log("Remember to add compendium folder entries for your new Starfinder compendiums and add Starfinder to the supported systems.")
 console.log("Any links to Pathfinder exclusive items will need to be fixed manually to redirect to Anachronism.")
 
 async function sendToSpace(packPath, file) {
     const fileData = await fs.readFile(path.resolve(packPath, file))
-    let newFileData = JSON.stringify(JSON.parse(fileData), null, 2)
+    let newFileData = toCrLf(JSON.stringify(JSON.parse(fileData), null, 2)
         .replaceAll("pf2e", "sf2e")
         .replaceAll("-srd", "")
         .replaceAll("classfeatures", "class-features")
@@ -153,7 +182,7 @@ async function sendToSpace(packPath, file) {
         .replaceAll(badID, moduleID)
         .replaceAll("sf2e-macros", "macros")
         .replaceAll("actionssf2e", "actions")
-        .replaceAll(`Compendium.${moduleID}.`, `Compendium.${moduleID}.sf-`)
+        .replaceAll(`Compendium.${moduleID}.`, `Compendium.${moduleID}.sf-`))
 
     for (const badPack of badPacks) {
         newFileData = newFileData.replaceAll(badPack, badPack.replaceAll("sf2e", "pf2e"))
