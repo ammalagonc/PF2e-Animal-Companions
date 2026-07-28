@@ -39,7 +39,7 @@
   },
   "_id": "ma45EqTK72KQLca3",
   "img": "systems/sf2e/icons/actions/OneAction.webp",
-  "sort": 500000,
+  "sort": 600000,
   "ownership": {
     "default": 0,
     "AhhBYTk3xYRMuz4T": 3
@@ -51,7 +51,7 @@
     "exportSource": null,
     "coreVersion": "14.363",
     "systemId": "sf2e",
-    "systemVersion": "1.2.0"
+    "systemVersion": "8.2.0"
   },
   "_key": "!items!ma45EqTK72KQLca3"
 }

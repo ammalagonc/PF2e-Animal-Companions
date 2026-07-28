@@ -20,7 +20,8 @@ const LINK_REPLACEMENTS = [
 ];
 
 function toCrLf(text) {
-    return text.replace(/\r\n|\n/g, "\r\n");
+    const normalized = text.replace(/\r\n|\n/g, "\r\n");
+    return normalized.endsWith("\r\n") ? normalized : `${normalized}\r\n`;
 }
 
 async function normalizeJsonFiles(targetDir) {
@@ -127,7 +128,7 @@ for (const pack of packFolders) {
     await extractPack(path.resolve(packsCompiled, pack), `packs/${pack}`);
 }
 
-console.log("Copying data from PF packs to SF packs")
+console.log("Rebuilding SF packs from PF packs")
 for (const pfPack of pfPacks) {
     const sourcePackPath = path.resolve(pfPack.path);
     const sfPackEntry = sfPacks.find(sf => sf.name.replace("sf-", "") === pfPack.name);
@@ -137,25 +138,16 @@ for (const pfPack of pfPacks) {
     }
     const targetPackPath = path.resolve(sfPackEntry.path);
 
+    await fs.rm(targetPackPath, { recursive: true, force: true });
+    await fs.mkdir(targetPackPath, { recursive: true });
+
     const sourceFiles = await fs.readdir(sourcePackPath, { withFileTypes: true });
     const sourceJsonFiles = sourceFiles
         .filter((f) => f.isFile() && f.name.toLowerCase().endsWith(".json"))
         .map((f) => f.name);
 
-    const existingSfFiles = new Set(
-        (await fs.readdir(targetPackPath, { withFileTypes: true }))
-            .filter((f) => f.isFile() && f.name.toLowerCase().endsWith(".json"))
-            .map((f) => f.name)
-    );
-
-    const filesToCreate = sourceJsonFiles.filter((file) => !existingSfFiles.has(file));
-    if (filesToCreate.length === 0) {
-        console.log(`No new items to create for ${pfPack.name}`);
-        continue;
-    }
-
-    console.log(`Creating ${filesToCreate.length} new item(s) in ${targetPackPath}`);
-    for (const file of filesToCreate) {
+    console.log(`Rebuilding ${sourceJsonFiles.length} item(s) in ${targetPackPath}`);
+    for (const file of sourceJsonFiles) {
         const sourceFilePath = path.resolve(sourcePackPath, file);
         const targetFilePath = path.resolve(targetPackPath, file);
         await fs.copyFile(sourceFilePath, targetFilePath);

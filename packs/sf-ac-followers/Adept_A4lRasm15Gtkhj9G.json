@@ -12,7 +12,7 @@
       "gm": ""
     },
     "publication": {
-      "title": "Pathfinder Adventure Path #223: Hell's Destiny",
+      "title": "Pathfinder Adventure Path #223: Hell’s Destiny",
       "authors": "",
       "license": "ORC",
       "remaster": true
@@ -581,7 +581,9 @@
       },
       {
         "key": "FlatModifier",
-        "selector": "dagger-damage",
+        "selector": [
+          "dagger-damage"
+        ],
         "value": 3,
         "label": "COMP.SpecificRule.Follower.VeteranAdvancement.Label",
         "slug": "veteran-advancement-dagger-damage",
@@ -593,7 +595,9 @@
       },
       {
         "key": "FlatModifier",
-        "selector": "energy-blast-damage",
+        "selector": [
+          "energy-blast-damage"
+        ],
         "value": 2,
         "label": "COMP.SpecificRule.Follower.VeteranAdvancement.Label",
         "slug": "veteran-energy-blast-advancement-damage",
@@ -761,21 +765,21 @@
       },
       {
         "key": "GrantItem",
-        "uuid": "Compendium.pf2e-animal-companions.sf-AC-Features.Item.RBDv51TNScVEdOVs"
+        "uuid": "Compendium.pf2e-animal-companions.sf-AC-Features.Item.78PMICTrQT66y7vk"
       },
       {
         "key": "GrantItem",
-        "uuid": "Compendium.pf2e-animal-companions.sf-AC-Features.Item.elnp42UrFOHSlD3z",
         "predicate": [
           "feature:veteran-advancement"
-        ]
+        ],
+        "uuid": "Compendium.pf2e-animal-companions.sf-AC-Features.Item.4081J9nw5GVQWohC"
       },
       {
         "key": "GrantItem",
         "predicate": [
           "feature:exceptional-advancement"
         ],
-        "uuid": "Compendium.pf2e-animal-companions.sf-AC-Features.Item.zCyMOvbb234frhRa"
+        "uuid": "Compendium.pf2e-animal-companions.sf-AC-Features.Item.uJrVhcm0TrNHm5wA"
       }
     ],
     "slug": null,
@@ -853,9 +857,9 @@
   },
   "flags": {},
   "_stats": {
-    "coreVersion": "14.363",
+    "coreVersion": "14.365",
     "systemId": "sf2e",
-    "systemVersion": "8.2.0",
+    "systemVersion": "8.3.0",
     "exportSource": null,
     "compendiumSource": null,
     "duplicateSource": null
