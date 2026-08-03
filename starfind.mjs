@@ -16,7 +16,7 @@ const sfPacks = data.packs.filter(p => p.system === "sf2e").map(p => ({ name: p.
 
 // Ordered list of replacement pack prefixes to try for broken UUID links
 const LINK_REPLACEMENTS = [
-    ["sf2e.", "pf2e-anachronism."]
+    ["pf2e.", "sf2e."]
 ];
 
 function toCrLf(text) {
@@ -164,6 +164,20 @@ console.log("Starfinder conversion completed!")
 console.log("Remember to add compendium folder entries for your new Starfinder compendiums and add Starfinder to the supported systems.")
 console.log("Any links to Pathfinder exclusive items will need to be fixed manually to redirect to Anachronism.")
 
+function rewriteCompendiumPrefixes(str) {
+    let updated = str;
+
+    for (const pack of pfPacks) {
+        const oldPrefix = `Compendium.${moduleID}.${pack.name}.`;
+        const newPrefix = `Compendium.${moduleID}.sf-${pack.name}.`;
+        if (updated.includes(oldPrefix)) {
+            updated = updated.replaceAll(oldPrefix, newPrefix);
+        }
+    }
+
+    return updated;
+}
+
 async function sendToSpace(packPath, file) {
     const fileData = await fs.readFile(path.resolve(packPath, file))
     let newFileData = toCrLf(JSON.stringify(JSON.parse(fileData), null, 2)
@@ -173,12 +187,9 @@ async function sendToSpace(packPath, file) {
         .replaceAll("conditionitems", "conditions")
         .replaceAll(badID, moduleID)
         .replaceAll("sf2e-macros", "macros")
-        .replaceAll("actionssf2e", "actions")
-        .replaceAll(`Compendium.${moduleID}.`, `Compendium.${moduleID}.sf-`))
+        .replaceAll("actionssf2e", "actions"))
 
-    for (const badPack of badPacks) {
-        newFileData = newFileData.replaceAll(badPack, badPack.replaceAll("sf2e", "pf2e"))
-    }
+    newFileData = rewriteCompendiumPrefixes(newFileData)
 
     await fs.writeFile(path.resolve(packPath, file), newFileData)
 }
