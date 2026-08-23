@@ -167,25 +167,25 @@
         "img": "systems/sf2e/icons/features/classes/shared-vigilance.webp",
         "name": "Shared Vigilance",
         "level": 3,
-        "uuid": "Compendium.pf2e-anachronism.class-features.Item.QiMlJ33kNEoyh1M0"
+        "uuid": "Compendium.sf2e.class-features.Item.QiMlJ33kNEoyh1M0"
       },
       "qs3dj": {
         "img": "systems/sf2e/icons/features/classes/resolve.webp",
         "name": "Shared Resolve",
         "level": 15,
-        "uuid": "Compendium.pf2e-anachronism.class-features.Item.eZPfHVz14j42jCnS"
+        "uuid": "Compendium.sf2e.class-features.Item.eZPfHVz14j42jCnS"
       },
       "v3p8l": {
         "img": "systems/sf2e/icons/features/classes/lightning-reflexes.webp",
         "name": "Shared Reflexes",
         "level": 9,
-        "uuid": "Compendium.pf2e-anachronism.class-features.Item.dZNAXTQovlWVvAyX"
+        "uuid": "Compendium.sf2e.class-features.Item.dZNAXTQovlWVvAyX"
       },
       "acx0x": {
         "img": "systems/sf2e/icons/features/classes/juggerenaut.webp",
         "name": "Twin Juggernauts",
         "level": 11,
-        "uuid": "Compendium.pf2e-anachronism.class-features.Item.q1Y12Pg2gQg2FJPR"
+        "uuid": "Compendium.sf2e.class-features.Item.q1Y12Pg2gQg2FJPR"
       },
       "o16um": {
         "img": "systems/sf2e/icons/features/classes/eidolon-symbiosis.webp",

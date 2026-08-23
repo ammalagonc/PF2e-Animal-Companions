@@ -17,7 +17,7 @@
     "rules": [
       {
         "key": "GrantItem",
-        "uuid": "Compendium.pf2e-anachronism.bestiary-ability-glossary.Item.Tkd8sH4pwFIPzqTr"
+        "uuid": "Compendium.sf2e.bestiary-ability-glossary.Item.Tkd8sH4pwFIPzqTr"
       }
     ],
     "slug": "grasping-limbs-cc",
@@ -73,7 +73,7 @@
     "systemId": "sf2e",
     "systemVersion": "7.7.1",
     "coreVersion": "13.350",
-    "compendiumSource": "Compendium.pf2e-anachronism.feats.Item.WsEVkMFe8ZEIRKLu",
+    "compendiumSource": "Compendium.sf2e.feats.Item.WsEVkMFe8ZEIRKLu",
     "duplicateSource": null,
     "exportSource": null
   },

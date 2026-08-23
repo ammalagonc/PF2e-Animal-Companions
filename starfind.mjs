@@ -19,6 +19,34 @@ const LINK_REPLACEMENTS = [
     ["pf2e.", "sf2e."]
 ];
 
+const SF2E_CONDITION_IDS = new Set([
+    "XgEqL1kFApUbl5Z2",
+    "i3OJZU2nk64Df3xm",
+    "DmAIPqOBomZ7H95W",
+    "yblD8fOR1J8rDwEQ",
+    "TkIyaNPgTZFBCCuh",
+    "9PR9y0bi4JPKnHPR",
+    "MIRkyAjyBeXivMa7",
+    "AdPVz7rbaVSRxHFg",
+    "HL2l2VRSaQHu9lUw",
+    "TBSHQspnbcqxsmjL",
+    "kWc1fhmv9LBiTuei",
+    "iU0fEDdBp3rXpTMC",
+    "eIcWbB5o3pP6OIMe",
+    "zJxUflt9np0q4yML",
+    "AJh5ex99aV6VTggg",
+    "6uEgoh53GbXuHpTF",
+    "j91X7x0XSomq8d60",
+    "VcDeM8A5oI6VqhbM",
+    "fesd1n5eVhpCSS18",
+    "xYTAsEpcJE1Ccni3",
+    "dfCMdR4wnpbYNTix",
+    "e1XGnhKNSQIm5IXg",
+    "fBnFDH2MTzgFijKf",
+    "VRSef5y1LmL2Hkjf",
+    "4D2KBtexWXa6oUMR"
+]);
+
 function toCrLf(text) {
     const normalized = text.replace(/\r\n|\n/g, "\r\n");
     return normalized.endsWith("\r\n") ? normalized : `${normalized}\r\n`;
@@ -178,6 +206,15 @@ function rewriteCompendiumPrefixes(str) {
     return updated;
 }
 
+function rewriteConditionLinks(str) {
+    return str.replaceAll(
+        /Compendium\.sf2e\.conditions\.(Item\.)?([A-Za-z0-9]+)/g,
+        (match, itemPrefix = "", conditionID) => SF2E_CONDITION_IDS.has(conditionID)
+            ? match
+            : `Compendium.pf2e-anachronism.conditions.${itemPrefix}${conditionID}`
+    );
+}
+
 async function sendToSpace(packPath, file) {
     const fileData = await fs.readFile(path.resolve(packPath, file))
     let newFileData = toCrLf(JSON.stringify(JSON.parse(fileData), null, 2)
@@ -189,6 +226,7 @@ async function sendToSpace(packPath, file) {
         .replaceAll("sf2e-macros", "macros")
         .replaceAll("actionssf2e", "actions"))
 
+    newFileData = rewriteConditionLinks(newFileData)
     newFileData = rewriteCompendiumPrefixes(newFileData)
 
     await fs.writeFile(path.resolve(packPath, file), newFileData)

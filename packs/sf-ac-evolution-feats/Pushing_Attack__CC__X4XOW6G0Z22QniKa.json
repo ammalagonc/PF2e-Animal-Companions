@@ -17,7 +17,7 @@
     "rules": [
       {
         "key": "GrantItem",
-        "uuid": "Compendium.pf2e-anachronism.bestiary-ability-glossary.Item.t6cx9FOODmeZQNYl"
+        "uuid": "Compendium.sf2e.bestiary-ability-glossary.Item.t6cx9FOODmeZQNYl"
       }
     ],
     "slug": "pushing-attack-cc",
@@ -73,7 +73,7 @@
     "systemId": "sf2e",
     "systemVersion": "7.7.1",
     "coreVersion": "13.350",
-    "compendiumSource": "Compendium.pf2e-anachronism.feats.Item.gdGusdEKt5zmh3rR",
+    "compendiumSource": "Compendium.sf2e.feats.Item.gdGusdEKt5zmh3rR",
     "duplicateSource": null,
     "exportSource": null
   },
