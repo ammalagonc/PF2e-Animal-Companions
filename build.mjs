@@ -21,8 +21,8 @@ for (const pack of packFolders) {
     await compilePack(`packs/${pack}`, path.resolve(outDir, `packs/${pack}`));
 }
 
-// If there are any 'sf-' prefixed packs, ensure there are no duplicate item names
-// across those packs. Only run starfind integration when no duplicates exist.
+// Warn about duplicate names across SF packs. Starfind synchronizes changed items by ID,
+// so duplicate names do not prevent the integration from running.
 const sfPackFolders = packFolders.filter((p) => p.startsWith("sf-"));
 if (sfPackFolders.length > 0) {
     const nameCounts = new Map();
@@ -49,23 +49,23 @@ if (sfPackFolders.length > 0) {
     }
 
     const duplicates = [...nameCounts.entries()].filter(([_, c]) => c > 1);
-    if (duplicates.length === 0) {
-        const sfPath = path.resolve(process.cwd(), 'starfind.mjs');
-        if (existsSync(sfPath)) {
-            try {
-                const mod = await import(pathToFileURL(sfPath).href);
-                if (mod && typeof mod.default === 'function') await mod.default();
-                else if (mod && typeof mod.run === 'function') await mod.run();
-                else if (typeof mod === 'function') await mod();
-                console.info(`Executed starfind from ${sfPath}`);
-            } catch (err) {
-                console.warn(`Failed to execute starfind at ${sfPath}: ${err.message}`);
-            }
-        } else {
-            console.info('No starfind.mjs found in repository root to run.');
+    if (duplicates.length > 0) {
+        console.warn(`Detected ${duplicates.length} duplicate item name(s) across sf- packs.`);
+    }
+
+    const sfPath = path.resolve(process.cwd(), 'starfind.mjs');
+    if (existsSync(sfPath)) {
+        try {
+            const mod = await import(pathToFileURL(sfPath).href);
+            if (mod && typeof mod.default === 'function') await mod.default();
+            else if (mod && typeof mod.run === 'function') await mod.run();
+            else if (typeof mod === 'function') await mod();
+            console.info(`Executed starfind from ${sfPath}`);
+        } catch (err) {
+            console.warn(`Failed to execute starfind at ${sfPath}: ${err.message}`);
         }
     } else {
-        console.info('Detected duplicate items across sf- packs; skipping starfind integration.');
+        console.info('No starfind.mjs found in repository root to run.');
     }
 }
 

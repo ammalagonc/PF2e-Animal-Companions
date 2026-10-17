@@ -1,5 +1,6 @@
 import fs from "fs/promises";
 import path from "path";
+import os from "os";
 import { existsSync } from "fs";
 import { execFileSync } from "child_process";
 import { compilePack, extractPack } from "@foundryvtt/foundryvtt-cli";
@@ -175,33 +176,14 @@ for (const pack of data.packs) {
 const outDir = path.resolve(process.cwd(), "build");
 const packsCompiled = path.resolve(outDir, "packs/");
 if (!existsSync(packsCompiled)) {
-    console.error("Packs directory does not exist in the build");
+    throw new Error(`Packs directory does not exist in the build: ${packsCompiled}`);
 }
 
-const packFolders = await fs.readdir(packsCompiled);
-
-console.log("Cleaning packs");
-for (const pack of packFolders) {
-    const files = await fs.readdir(`packs/${pack}`, { withFileTypes: true });
-    const jsonFiles = files
-        .filter((f) => f.isFile() && f.name.toLowerCase().endsWith(".json"))
-        .map((f) => f.name);
-    for (const file of jsonFiles) {
-        await fs.rm(path.resolve("packs", pack, file));
-    }
-}
-
-for (const pack of packFolders) {
-    console.log(`Extracting pack: ${pack}`);
-    await extractPack(path.resolve(packsCompiled, pack), `packs/${pack}`);
-}
-
-console.log("Updating SF packs from changed PF items")
+console.log("Extracting changed PF items and updating their SF equivalents")
 for (const pfPack of pfPacks) {
     const changedItems = changedPfItems.get(pfPack.name);
     if (changedItems.size === 0) continue;
 
-    const sourcePackPath = path.resolve(pfPack.path);
     const sfPackEntry = sfPacks.find(sf => sf.name.replace("sf-", "") === pfPack.name);
     if (!sfPackEntry) {
         console.log(`Skipping changed items in ${pfPack.name}; no corresponding sf- pack defined in module.json.`);
@@ -209,37 +191,46 @@ for (const pfPack of pfPacks) {
     }
     const targetPackPath = path.resolve(sfPackEntry.path);
     await fs.mkdir(targetPackPath, { recursive: true });
-    const sourceItems = await getPackItems(sourcePackPath);
-    const targetItems = await getPackItems(targetPackPath);
 
-    let updatedItems = 0;
-    for (const itemId of changedItems) {
-        const sourceFile = sourceItems.get(itemId);
-        const targetFile = targetItems.get(itemId);
-        if (sourceFile) {
-            const sourceFilePath = path.resolve(sourcePackPath, sourceFile);
-            const targetFilePath = path.resolve(targetPackPath, sourceFile);
-            if (targetFile && targetFile !== sourceFile) {
+    const tempPackRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pf2e-ac-pack-"));
+    try {
+        const extractedPackPath = path.join(tempPackRoot, pfPack.name);
+        const compiledPackPath = path.resolve(packsCompiled, path.basename(pfPack.path));
+        await extractPack(compiledPackPath, extractedPackPath);
+        const sourceItems = await getPackItems(extractedPackPath);
+        const targetItems = await getPackItems(targetPackPath);
+
+        let updatedItems = 0;
+        for (const itemId of changedItems) {
+            const sourceFile = sourceItems.get(itemId);
+            const targetFile = targetItems.get(itemId);
+            if (sourceFile) {
+                const sourceFilePath = path.resolve(extractedPackPath, sourceFile);
+                const targetFilePath = path.resolve(targetPackPath, sourceFile);
+                if (targetFile && targetFile !== sourceFile) {
+                    await fs.rm(path.resolve(targetPackPath, targetFile));
+                }
+                await fs.mkdir(path.dirname(targetFilePath), { recursive: true });
+                await fs.copyFile(sourceFilePath, targetFilePath);
+                await sendToSpace(targetPackPath, sourceFile);
+                await fixLinksInFile(targetFilePath);
+                updatedItems += 1;
+            } else if (targetFile) {
                 await fs.rm(path.resolve(targetPackPath, targetFile));
+                updatedItems += 1;
+                console.log(`Removed deleted PF2e item ${path.resolve(targetPackPath, targetFile)}`);
             }
-            await fs.mkdir(path.dirname(targetFilePath), { recursive: true });
-            await fs.copyFile(sourceFilePath, targetFilePath);
-            await sendToSpace(targetPackPath, sourceFile);
-            await fixLinksInFile(targetFilePath);
-            updatedItems += 1;
-        } else if (targetFile) {
-            await fs.rm(path.resolve(targetPackPath, targetFile));
-            updatedItems += 1;
-            console.log(`Removed deleted PF2e item ${path.resolve(targetPackPath, targetFile)}`);
         }
+
+        if (updatedItems === 0) continue;
+
+        console.log(`Updated ${updatedItems} changed item(s) in ${targetPackPath}`);
+        const compiledSfPackPath = path.resolve(outDir, sfPackEntry.path);
+        await fs.rm(compiledSfPackPath, { recursive: true, force: true });
+        await compilePack(targetPackPath, compiledSfPackPath);
+    } finally {
+        await fs.rm(tempPackRoot, { recursive: true, force: true });
     }
-
-    if (updatedItems === 0) continue;
-
-    console.log(`Updated ${updatedItems} changed item(s) in ${targetPackPath}`);
-    const compiledPackPath = path.resolve(outDir, sfPackEntry.path);
-    await fs.rm(compiledPackPath, { recursive: true, force: true });
-    await compilePack(targetPackPath, compiledPackPath);
 }
 
 console.log("Starfinder conversion completed!")
