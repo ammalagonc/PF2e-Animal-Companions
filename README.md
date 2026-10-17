@@ -26,3 +26,7 @@ Once enabled in a world it will add several new compendiums, all of which start 
 
 # Known Issues
 - Multiclass summoners have an extra feature they can add to make the ability scores of the eidolon correct. The proficiencies will be fixed in a future update.
+
+# Building
+
+Run `npm run build` to compile the packs. The Starfinder packs are updated only for PF2e item JSON files that are added, modified, or deleted in the current Git working tree; other Starfinder items are preserved.

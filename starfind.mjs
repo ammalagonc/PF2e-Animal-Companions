@@ -1,7 +1,8 @@
 import fs from "fs/promises";
 import path from "path";
 import { existsSync } from "fs";
-import { extractPack } from "@foundryvtt/foundryvtt-cli";
+import { execFileSync } from "child_process";
+import { compilePack, extractPack } from "@foundryvtt/foundryvtt-cli";
 
 console.log("Reading manifest")
 // Read from manifest
@@ -13,6 +14,56 @@ const badID = moduleID.replace("pf2e", "sf2e")
 // Find all PF and existing SF packs
 const pfPacks = data.packs.filter(p => p.system === "pf2e").map(p => ({ name: p.name, path: p.path }))
 const sfPacks = data.packs.filter(p => p.system === "sf2e").map(p => ({ name: p.name, path: p.path }))
+
+async function getChangedPfItems() {
+    const packPaths = pfPacks.map(pack => `${pack.path.replaceAll("\\", "/")}/`);
+    let changedPaths;
+
+    try {
+        const diffPaths = execFileSync("git", [
+            "diff", "--name-only", "--no-renames", "HEAD", "--", ...packPaths
+        ], { encoding: "utf8" });
+        const untrackedPaths = execFileSync("git", [
+            "ls-files", "--others", "--exclude-standard", "--", ...packPaths
+        ], { encoding: "utf8" });
+        changedPaths = [...diffPaths.split(/\r?\n/), ...untrackedPaths.split(/\r?\n/)]
+            .filter(Boolean);
+    } catch (error) {
+        if (error.code !== "ENOENT" && error.status !== 128) throw error;
+        console.warn(`Unable to detect changed PF2e items from Git; leaving SF2e packs unchanged: ${error.message}`);
+        return new Map();
+    }
+
+    const changedItems = new Map(pfPacks.map(pack => [pack.name, new Set()]));
+    for (const changedPath of changedPaths) {
+        if (!changedPath.toLowerCase().endsWith(".json")) continue;
+
+        const absolutePath = path.resolve(changedPath);
+        const content = existsSync(absolutePath)
+            ? await fs.readFile(absolutePath, "utf8")
+            : execFileSync("git", ["show", `HEAD:${changedPath}`], { encoding: "utf8" });
+        const itemData = JSON.parse(content);
+        if (!itemData._key?.startsWith("!items!")) continue;
+        const itemId = itemData._id ?? itemData._key.slice("!items!".length);
+
+        for (const pack of pfPacks) {
+            const relativePath = path.relative(path.resolve(pack.path), absolutePath);
+            if (
+                relativePath &&
+                relativePath !== ".." &&
+                !relativePath.startsWith(`..${path.sep}`) &&
+                !path.isAbsolute(relativePath)
+            ) {
+                changedItems.get(pack.name).add(itemId);
+                break;
+            }
+        }
+    }
+
+    return changedItems;
+}
+
+const changedPfItems = await getChangedPfItems();
 
 // Ordered list of replacement pack prefixes to try for broken UUID links
 const LINK_REPLACEMENTS = [
@@ -52,27 +103,6 @@ function toCrLf(text) {
     return normalized.endsWith("\r\n") ? normalized : `${normalized}\r\n`;
 }
 
-async function normalizeJsonFiles(targetDir) {
-    if (!existsSync(targetDir)) return;
-
-    const entries = await fs.readdir(targetDir, { withFileTypes: true });
-    for (const entry of entries) {
-        const entryPath = path.resolve(targetDir, entry.name);
-        if (entry.isDirectory()) {
-            await normalizeJsonFiles(entryPath);
-            continue;
-        }
-
-        if (!entry.isFile() || !entry.name.toLowerCase().endsWith(".json")) continue;
-
-        const currentContent = await fs.readFile(entryPath, "utf8");
-        const normalizedContent = toCrLf(currentContent);
-        if (currentContent !== normalizedContent) {
-            await fs.writeFile(entryPath, normalizedContent);
-        }
-    }
-}
-
 function replaceCompendiumLinks(str) {
     let replaced = false;
     for (const [from, to] of LINK_REPLACEMENTS) {
@@ -86,19 +116,29 @@ function replaceCompendiumLinks(str) {
     return { str, replaced };
 }
 
-async function fixLinksInPack(packPath) {
+async function fixLinksInFile(filePath) {
+    let content = await fs.readFile(filePath, 'utf8');
+    const result = replaceCompendiumLinks(content);
+    const normalizedContent = toCrLf(result.str);
+    if (result.replaced || content !== normalizedContent) {
+        await fs.writeFile(filePath, normalizedContent);
+        console.log(`Fixed compendium links in ${filePath}`);
+    }
+}
+
+async function getPackItems(packPath) {
+    const items = new Map();
     const files = await fs.readdir(packPath, { withFileTypes: true });
     for (const file of files) {
-        if (!file.isFile() || !file.name.toLowerCase().endsWith('.json')) continue;
+        if (!file.isFile() || !file.name.toLowerCase().endsWith(".json")) continue;
+
         const filePath = path.resolve(packPath, file.name);
-        let content = await fs.readFile(filePath, 'utf8');
-        const result = replaceCompendiumLinks(content);
-        const normalizedContent = toCrLf(result.str);
-        if (result.replaced || content !== normalizedContent) {
-            await fs.writeFile(filePath, normalizedContent);
-            console.log(`Fixed compendium links in ${filePath}`);
-        }
+        const itemData = JSON.parse(await fs.readFile(filePath, "utf8"));
+        if (!itemData._key?.startsWith("!items!")) continue;
+        const itemId = itemData._id ?? itemData._key.slice("!items!".length);
+        items.set(itemId, file.name);
     }
+    return items;
 }
 
 // We need to make sure packs with pf2e in the name don't break things
@@ -156,37 +196,51 @@ for (const pack of packFolders) {
     await extractPack(path.resolve(packsCompiled, pack), `packs/${pack}`);
 }
 
-console.log("Rebuilding SF packs from PF packs")
+console.log("Updating SF packs from changed PF items")
 for (const pfPack of pfPacks) {
+    const changedItems = changedPfItems.get(pfPack.name);
+    if (changedItems.size === 0) continue;
+
     const sourcePackPath = path.resolve(pfPack.path);
     const sfPackEntry = sfPacks.find(sf => sf.name.replace("sf-", "") === pfPack.name);
     if (!sfPackEntry) {
-        console.log(`Skipping ${pfPack.name}; no corresponding sf- pack defined in module.json.`);
+        console.log(`Skipping changed items in ${pfPack.name}; no corresponding sf- pack defined in module.json.`);
         continue;
     }
     const targetPackPath = path.resolve(sfPackEntry.path);
-
-    await fs.rm(targetPackPath, { recursive: true, force: true });
     await fs.mkdir(targetPackPath, { recursive: true });
+    const sourceItems = await getPackItems(sourcePackPath);
+    const targetItems = await getPackItems(targetPackPath);
 
-    const sourceFiles = await fs.readdir(sourcePackPath, { withFileTypes: true });
-    const sourceJsonFiles = sourceFiles
-        .filter((f) => f.isFile() && f.name.toLowerCase().endsWith(".json"))
-        .map((f) => f.name);
-
-    console.log(`Rebuilding ${sourceJsonFiles.length} item(s) in ${targetPackPath}`);
-    for (const file of sourceJsonFiles) {
-        const sourceFilePath = path.resolve(sourcePackPath, file);
-        const targetFilePath = path.resolve(targetPackPath, file);
-        await fs.copyFile(sourceFilePath, targetFilePath);
-        await sendToSpace(targetPackPath, file);
+    let updatedItems = 0;
+    for (const itemId of changedItems) {
+        const sourceFile = sourceItems.get(itemId);
+        const targetFile = targetItems.get(itemId);
+        if (sourceFile) {
+            const sourceFilePath = path.resolve(sourcePackPath, sourceFile);
+            const targetFilePath = path.resolve(targetPackPath, sourceFile);
+            if (targetFile && targetFile !== sourceFile) {
+                await fs.rm(path.resolve(targetPackPath, targetFile));
+            }
+            await fs.mkdir(path.dirname(targetFilePath), { recursive: true });
+            await fs.copyFile(sourceFilePath, targetFilePath);
+            await sendToSpace(targetPackPath, sourceFile);
+            await fixLinksInFile(targetFilePath);
+            updatedItems += 1;
+        } else if (targetFile) {
+            await fs.rm(path.resolve(targetPackPath, targetFile));
+            updatedItems += 1;
+            console.log(`Removed deleted PF2e item ${path.resolve(targetPackPath, targetFile)}`);
+        }
     }
 
-    await fixLinksInPack(targetPackPath);
-}
+    if (updatedItems === 0) continue;
 
-await normalizeJsonFiles(path.resolve(process.cwd(), "packs"));
-await normalizeJsonFiles(path.resolve(process.cwd(), "build", "packs"));
+    console.log(`Updated ${updatedItems} changed item(s) in ${targetPackPath}`);
+    const compiledPackPath = path.resolve(outDir, sfPackEntry.path);
+    await fs.rm(compiledPackPath, { recursive: true, force: true });
+    await compilePack(targetPackPath, compiledPackPath);
+}
 
 console.log("Starfinder conversion completed!")
 console.log("Remember to add compendium folder entries for your new Starfinder compendiums and add Starfinder to the supported systems.")
