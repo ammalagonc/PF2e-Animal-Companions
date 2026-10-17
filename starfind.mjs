@@ -66,62 +66,41 @@ async function getChangedPfItems() {
 
 const changedPfItems = await getChangedPfItems();
 
-// Ordered list of replacement pack prefixes to try for broken UUID links
-const LINK_REPLACEMENTS = [
-    ["pf2e.", "sf2e."]
-];
-
-const SF2E_CONDITION_IDS = new Set([
-    "XgEqL1kFApUbl5Z2",
-    "i3OJZU2nk64Df3xm",
-    "DmAIPqOBomZ7H95W",
-    "yblD8fOR1J8rDwEQ",
-    "TkIyaNPgTZFBCCuh",
-    "9PR9y0bi4JPKnHPR",
-    "MIRkyAjyBeXivMa7",
-    "AdPVz7rbaVSRxHFg",
-    "HL2l2VRSaQHu9lUw",
-    "TBSHQspnbcqxsmjL",
-    "kWc1fhmv9LBiTuei",
-    "iU0fEDdBp3rXpTMC",
-    "eIcWbB5o3pP6OIMe",
-    "zJxUflt9np0q4yML",
-    "AJh5ex99aV6VTggg",
-    "6uEgoh53GbXuHpTF",
-    "j91X7x0XSomq8d60",
-    "VcDeM8A5oI6VqhbM",
-    "fesd1n5eVhpCSS18",
-    "xYTAsEpcJE1Ccni3",
-    "dfCMdR4wnpbYNTix",
-    "e1XGnhKNSQIm5IXg",
-    "fBnFDH2MTzgFijKf",
-    "VRSef5y1LmL2Hkjf",
-    "4D2KBtexWXa6oUMR"
-]);
-
 function toCrLf(text) {
     const normalized = text.replace(/\r\n|\n/g, "\r\n");
     return normalized.endsWith("\r\n") ? normalized : `${normalized}\r\n`;
 }
 
 function replaceCompendiumLinks(str) {
-    let replaced = false;
-    for (const [from, to] of LINK_REPLACEMENTS) {
-        const fromPattern = `Compendium.${from}`;
-        const toPattern = `Compendium.${to}`;
-        if (str.includes(fromPattern)) {
-            str = str.replaceAll(fromPattern, toPattern);
-            replaced = true;
-        }
+    let updated = str;
+
+    for (const pack of pfPacks) {
+        const oldPrefix = `Compendium.${moduleID}.${pack.name}.`;
+        const newPrefix = `Compendium.${moduleID}.sf-${pack.name}.`;
+        updated = updated.replaceAll(oldPrefix, newPrefix);
     }
-    return { str, replaced };
+
+    return updated.replace(
+        /Compendium\.pf2e\.([A-Za-z0-9_-]+)\.(Item\.)?([A-Za-z0-9]+)/g,
+        (_match, pack, itemPrefix = "", itemId) => {
+            if (pack === "conditionitems") {
+                return `Compendium.sf2e.conditions.${itemPrefix}${itemId}`;
+            }
+
+            const anachronismPack = pack
+                .replace(/-srd$/, "")
+                .replace(/^actionspf2e$/, "actions")
+                .replace(/^classfeatures$/, "class-features");
+            return `Compendium.pf2e-anachronism.${anachronismPack}.${itemPrefix}${itemId}`;
+        }
+    );
 }
 
 async function fixLinksInFile(filePath) {
     let content = await fs.readFile(filePath, 'utf8');
-    const result = replaceCompendiumLinks(content);
-    const normalizedContent = toCrLf(result.str);
-    if (result.replaced || content !== normalizedContent) {
+    const rewrittenContent = replaceCompendiumLinks(content);
+    const normalizedContent = toCrLf(rewrittenContent);
+    if (content !== normalizedContent) {
         await fs.writeFile(filePath, normalizedContent);
         console.log(`Fixed compendium links in ${filePath}`);
     }
@@ -141,9 +120,6 @@ async function getPackItems(packPath) {
     }
     return items;
 }
-
-// We need to make sure packs with pf2e in the name don't break things
-const badPacks = data.packs.filter(p => p.system === "pf2e").map(n => n.name.replace("pf2e", "sf2e"))
 
 // We don't want to add existing SF packs again!
 const toBeAdded = pfPacks.filter(pf => !sfPacks.some(sf => sf.name.replace("sf-", "") === pf.name))
@@ -237,32 +213,18 @@ console.log("Starfinder conversion completed!")
 console.log("Remember to add compendium folder entries for your new Starfinder compendiums and add Starfinder to the supported systems.")
 console.log("Any links to Pathfinder exclusive items will need to be fixed manually to redirect to Anachronism.")
 
-function rewriteCompendiumPrefixes(str) {
-    let updated = str;
-
-    for (const pack of pfPacks) {
-        const oldPrefix = `Compendium.${moduleID}.${pack.name}.`;
-        const newPrefix = `Compendium.${moduleID}.sf-${pack.name}.`;
-        if (updated.includes(oldPrefix)) {
-            updated = updated.replaceAll(oldPrefix, newPrefix);
-        }
-    }
-
-    return updated;
-}
-
-function rewriteConditionLinks(str) {
-    return str.replaceAll(
-        /Compendium\.sf2e\.conditions\.(Item\.)?([A-Za-z0-9]+)/g,
-        (match, itemPrefix = "", conditionID) => SF2E_CONDITION_IDS.has(conditionID)
-            ? match
-            : `Compendium.pf2e-anachronism.conditions.${itemPrefix}${conditionID}`
-    );
-}
-
 async function sendToSpace(packPath, file) {
     const fileData = await fs.readFile(path.resolve(packPath, file))
-    let newFileData = toCrLf(JSON.stringify(JSON.parse(fileData), null, 2)
+    let newFileData = replaceCompendiumLinks(JSON.stringify(JSON.parse(fileData), null, 2));
+    const compendiumLinks = [];
+    newFileData = newFileData.replace(
+        /Compendium\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.(?:Item\.)?[A-Za-z0-9]+/g,
+        link => {
+            compendiumLinks.push(link);
+            return `__COMPENDIUM_LINK_${compendiumLinks.length - 1}__`;
+        }
+    );
+    newFileData = toCrLf(newFileData
         .replaceAll("pf2e", "sf2e")
         .replaceAll("-srd", "")
         .replaceAll("classfeatures", "class-features")
@@ -270,9 +232,7 @@ async function sendToSpace(packPath, file) {
         .replaceAll(badID, moduleID)
         .replaceAll("sf2e-macros", "macros")
         .replaceAll("actionssf2e", "actions"))
-
-    newFileData = rewriteConditionLinks(newFileData)
-    newFileData = rewriteCompendiumPrefixes(newFileData)
+        .replace(/__COMPENDIUM_LINK_(\d+)__/g, (_match, index) => compendiumLinks[Number(index)]);
 
     await fs.writeFile(path.resolve(packPath, file), newFileData)
 }
