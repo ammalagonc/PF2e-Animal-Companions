@@ -29,6 +29,12 @@ Once enabled in a world it will add several new compendiums, all of which start 
 
 # Building
 
+Install the project dependencies before running the build or extraction commands:
+
+```sh
+npm ci
+```
+
 Run `npm run build` to compile the packs. The build extracts only PF2e packs with changed items, then updates matching SF2e items by ID for PF2e item JSON files that are added, modified, or deleted in the current Git working tree. Other Starfinder items are preserved. Duplicate SF2e item names are still reported, but do not block this ID-based synchronization.
 
 `npm run extractPacks:all` incrementally extracts changed PF2e items from `build/packs` and updates their matching SF2e items, preserving all other pack data. `npm run extractPacks` performs a full extraction of every compiled pack.
