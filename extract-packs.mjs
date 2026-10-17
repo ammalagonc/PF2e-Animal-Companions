@@ -156,25 +156,39 @@ if (args.includes("all")) {
         console.warn("starfind.mjs not found in repository root; cannot update SF2e items.");
     }
 } else {
-    console.log("Cleaning packs");
-    for (const pack of packFolders) {
-        const files = await fs.readdir(`packs/${pack}`, { withFileTypes: true });
-        const jsonFiles = files
-            .filter((f) => f.isFile() && f.name.toLowerCase().endsWith(".json"))
-            .map((f) => f.name);
-        for (const file of jsonFiles) {
-            await fs.rm(path.resolve("packs", pack, file));
+    const stagingRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pf2e-ac-full-extract-"));
+    try {
+        for (const pack of packFolders) {
+            const stagedPackPath = path.join(stagingRoot, pack);
+            console.log(`Extracting pack: ${pack}`);
+            try {
+                await extractPack(path.resolve(packsCompiled, pack), stagedPackPath, {
+                    jsonOptions: { replacer, space: 2 }
+                });
+            } catch (error) {
+                throw new Error(
+                    `Failed to extract ${pack}. Run "npm run build" to regenerate compiled packs, then retry extraction.`,
+                    { cause: error }
+                );
+            }
         }
-    }
 
-    for (const pack of packFolders) {
-        console.log(`Extracting pack: ${pack}`);
-        await extractPack(path.resolve(packsCompiled, pack), `packs/${pack}`, {
-            jsonOptions: { replacer, space: 2 }
-        });
-    }
+        console.log("Replacing pack JSON files with staged extraction");
+        for (const pack of packFolders) {
+            const targetPackPath = path.resolve("packs", pack);
+            const files = await fs.readdir(targetPackPath, { withFileTypes: true });
+            for (const file of files) {
+                if (file.isFile() && file.name.toLowerCase().endsWith(".json")) {
+                    await fs.rm(path.join(targetPackPath, file.name));
+                }
+            }
+            await fs.cp(path.join(stagingRoot, pack), targetPackPath, { recursive: true });
+        }
 
-    await normalizeJsonFiles(path.resolve(process.cwd(), "packs"));
-    await normalizeJsonFiles(path.resolve(process.cwd(), "build", "packs"));
-    console.log("Extraction Complete");
+        await normalizeJsonFiles(path.resolve(process.cwd(), "packs"));
+        await normalizeJsonFiles(path.resolve(process.cwd(), "build", "packs"));
+        console.log("Extraction Complete");
+    } finally {
+        await fs.rm(stagingRoot, { recursive: true, force: true });
+    }
 }
