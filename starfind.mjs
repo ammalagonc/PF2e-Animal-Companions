@@ -5,37 +5,28 @@ import { existsSync } from "fs";
 import { execFileSync } from "child_process";
 import { compilePack, extractPack } from "@foundryvtt/foundryvtt-cli";
 
-console.log("Reading manifest")
-// Read from manifest
-const manifest = await fs.readFile("module.json")
-const data = JSON.parse(manifest)
-const moduleID = data.id
-const badID = moduleID.replace("pf2e", "sf2e")
-
-// Find all PF and existing SF packs
-const pfPacks = data.packs.filter(p => p.system === "pf2e").map(p => ({ name: p.name, path: p.path }))
-const sfPacks = data.packs.filter(p => p.system === "sf2e").map(p => ({ name: p.name, path: p.path }))
+const manifest = JSON.parse(await fs.readFile("module.json", "utf8"));
+const moduleID = manifest.id;
+const badID = moduleID.replace("pf2e", "sf2e");
+const pfPacks = manifest.packs
+    .filter(pack => pack.system === "pf2e")
+    .map(pack => ({ name: pack.name, path: pack.path }));
+let sfPacks = manifest.packs
+    .filter(pack => pack.system === "sf2e")
+    .map(pack => ({ name: pack.name, path: pack.path }));
 
 async function getChangedPfItems() {
     const packPaths = pfPacks.map(pack => `${pack.path.replaceAll("\\", "/")}/`);
-    let changedPaths;
-
-    try {
-        const diffPaths = execFileSync("git", [
-            "diff", "--name-only", "--no-renames", "HEAD", "--", ...packPaths
-        ], { encoding: "utf8" });
-        const untrackedPaths = execFileSync("git", [
-            "ls-files", "--others", "--exclude-standard", "--", ...packPaths
-        ], { encoding: "utf8" });
-        changedPaths = [...diffPaths.split(/\r?\n/), ...untrackedPaths.split(/\r?\n/)]
-            .filter(Boolean);
-    } catch (error) {
-        if (error.code !== "ENOENT" && error.status !== 128) throw error;
-        console.warn(`Unable to detect changed PF2e items from Git; leaving SF2e packs unchanged: ${error.message}`);
-        return new Map();
-    }
-
+    const diffPaths = execFileSync("git", [
+        "diff", "--name-only", "--no-renames", "HEAD", "--", ...packPaths
+    ], { encoding: "utf8" });
+    const untrackedPaths = execFileSync("git", [
+        "ls-files", "--others", "--exclude-standard", "--", ...packPaths
+    ], { encoding: "utf8" });
+    const changedPaths = [...diffPaths.split(/\r?\n/), ...untrackedPaths.split(/\r?\n/)]
+        .filter(Boolean);
     const changedItems = new Map(pfPacks.map(pack => [pack.name, new Set()]));
+
     for (const changedPath of changedPaths) {
         if (!changedPath.toLowerCase().endsWith(".json")) continue;
 
@@ -64,20 +55,18 @@ async function getChangedPfItems() {
     return changedItems;
 }
 
-const changedPfItems = await getChangedPfItems();
-
 function toCrLf(text) {
     const normalized = text.replace(/\r\n|\n/g, "\r\n");
     return normalized.endsWith("\r\n") ? normalized : `${normalized}\r\n`;
 }
 
-function replaceCompendiumLinks(str) {
-    let updated = str;
-
+function replaceCompendiumLinks(text) {
+    let updated = text;
     for (const pack of pfPacks) {
-        const oldPrefix = `Compendium.${moduleID}.${pack.name}.`;
-        const newPrefix = `Compendium.${moduleID}.sf-${pack.name}.`;
-        updated = updated.replaceAll(oldPrefix, newPrefix);
+        updated = updated.replaceAll(
+            `Compendium.${moduleID}.${pack.name}.`,
+            `Compendium.${moduleID}.sf-${pack.name}.`
+        );
     }
 
     return updated.replace(
@@ -97,13 +86,9 @@ function replaceCompendiumLinks(str) {
 }
 
 async function fixLinksInFile(filePath) {
-    let content = await fs.readFile(filePath, 'utf8');
-    const rewrittenContent = replaceCompendiumLinks(content);
-    const normalizedContent = toCrLf(rewrittenContent);
-    if (content !== normalizedContent) {
-        await fs.writeFile(filePath, normalizedContent);
-        console.log(`Fixed compendium links in ${filePath}`);
-    }
+    const content = await fs.readFile(filePath, "utf8");
+    const updated = toCrLf(replaceCompendiumLinks(content));
+    if (content !== updated) await fs.writeFile(filePath, updated);
 }
 
 async function getPackItems(packPath) {
@@ -121,53 +106,47 @@ async function getPackItems(packPath) {
     return items;
 }
 
-// We don't want to add existing SF packs again!
-const toBeAdded = pfPacks.filter(pf => !sfPacks.some(sf => sf.name.replace("sf-", "") === pf.name))
+const changedPfItems = await getChangedPfItems();
+const toBeAdded = pfPacks.filter(
+    pfPack => !sfPacks.some(sfPack => sfPack.name.replace(/^sf-/, "") === pfPack.name)
+);
 
-if (toBeAdded.length > 0) console.log("Modifying manifest");
-// Make the new pack object
-for (const addedPack of toBeAdded) {
-    const oldData = data.packs.find(p => p.name === addedPack);
-    const newName = "sf-" + oldData.name;
-    const newPath = oldData.path.replace("packs/", "packs/sf-");
+for (const pfPack of toBeAdded) {
+    const oldData = manifest.packs.find(pack => pack.name === pfPack.name);
+    if (!oldData) throw new Error(`Missing manifest entry for PF2e pack ${pfPack.name}`);
+
     const newData = structuredClone(oldData);
-    newData.name = newName;
-    newData.path = newPath;
+    newData.name = `sf-${oldData.name}`;
+    newData.path = oldData.path.replace("packs/", "packs/sf-");
     newData.system = "sf2e";
-    data.packs.push(newData)
+    manifest.packs.push(newData);
 }
 
-// Write the new data to the manifest
-await fs.writeFile("module.json", toCrLf(JSON.stringify(data, null, 4)))
-
-console.log("Checking for extracted data structure")
-// Make a pack folder for each pack if they don't exist
-for (const pack of data.packs) {
-    const packPath = path.resolve(pack.path);
-    if (!existsSync(packPath)) {
-        await fs.mkdir(packPath, {recursive: true})
-    }
+if (toBeAdded.length > 0) {
+    await fs.writeFile("module.json", toCrLf(JSON.stringify(manifest, null, 4)));
+    sfPacks = manifest.packs
+        .filter(pack => pack.system === "sf2e")
+        .map(pack => ({ name: pack.name, path: pack.path }));
 }
 
 const outDir = path.resolve(process.cwd(), "build");
-const packsCompiled = path.resolve(outDir, "packs/");
+const packsCompiled = path.resolve(outDir, "packs");
 if (!existsSync(packsCompiled)) {
     throw new Error(`Packs directory does not exist in the build: ${packsCompiled}`);
 }
 
-console.log("Extracting changed PF items and updating their SF equivalents")
 for (const pfPack of pfPacks) {
     const changedItems = changedPfItems.get(pfPack.name);
     if (changedItems.size === 0) continue;
 
-    const sfPackEntry = sfPacks.find(sf => sf.name.replace("sf-", "") === pfPack.name);
-    if (!sfPackEntry) {
-        console.log(`Skipping changed items in ${pfPack.name}; no corresponding sf- pack defined in module.json.`);
+    const sfPack = sfPacks.find(entry => entry.name.replace(/^sf-/, "") === pfPack.name);
+    if (!sfPack) {
+        console.warn(`Skipping ${pfPack.name}; no matching SF2e pack exists.`);
         continue;
     }
-    const targetPackPath = path.resolve(sfPackEntry.path);
-    await fs.mkdir(targetPackPath, { recursive: true });
 
+    const targetPackPath = path.resolve(sfPack.path);
+    await fs.mkdir(targetPackPath, { recursive: true });
     const tempPackRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pf2e-ac-pack-"));
     try {
         const extractedPackPath = path.join(tempPackRoot, pfPack.name);
@@ -186,7 +165,7 @@ for (const pfPack of pfPacks) {
                 if (targetFile && targetFile !== sourceFile) {
                     await fs.rm(path.resolve(targetPackPath, targetFile));
                 }
-                await fs.mkdir(path.dirname(targetFilePath), { recursive: true });
+
                 await fs.copyFile(sourceFilePath, targetFilePath);
                 await sendToSpace(targetPackPath, sourceFile);
                 await fixLinksInFile(targetFilePath);
@@ -194,14 +173,14 @@ for (const pfPack of pfPacks) {
             } else if (targetFile) {
                 await fs.rm(path.resolve(targetPackPath, targetFile));
                 updatedItems += 1;
-                console.log(`Removed deleted PF2e item ${path.resolve(targetPackPath, targetFile)}`);
+                console.info(`Removed deleted PF2e item ${itemId} from ${targetPackPath}`);
             }
         }
 
         if (updatedItems === 0) continue;
 
-        console.log(`Updated ${updatedItems} changed item(s) in ${targetPackPath}`);
-        const compiledSfPackPath = path.resolve(outDir, sfPackEntry.path);
+        console.info(`Updated ${updatedItems} changed item(s) in ${targetPackPath}`);
+        const compiledSfPackPath = path.resolve(outDir, sfPack.path);
         await fs.rm(compiledSfPackPath, { recursive: true, force: true });
         await compilePack(targetPackPath, compiledSfPackPath);
     } finally {
@@ -209,22 +188,19 @@ for (const pfPack of pfPacks) {
     }
 }
 
-console.log("Starfinder conversion completed!")
-console.log("Remember to add compendium folder entries for your new Starfinder compendiums and add Starfinder to the supported systems.")
-console.log("Any links to Pathfinder exclusive items will need to be fixed manually to redirect to Anachronism.")
-
 async function sendToSpace(packPath, file) {
-    const fileData = await fs.readFile(path.resolve(packPath, file))
-    let newFileData = replaceCompendiumLinks(JSON.stringify(JSON.parse(fileData), null, 2));
-    const compendiumLinks = [];
-    newFileData = newFileData.replace(
+    const filePath = path.resolve(packPath, file);
+    const fileData = JSON.parse(await fs.readFile(filePath, "utf8"));
+    let serialized = replaceCompendiumLinks(JSON.stringify(fileData, null, 2));
+    const links = [];
+    serialized = serialized.replace(
         /Compendium\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.(?:Item\.)?[A-Za-z0-9]+/g,
         link => {
-            compendiumLinks.push(link);
-            return `__COMPENDIUM_LINK_${compendiumLinks.length - 1}__`;
+            links.push(link);
+            return `__COMPENDIUM_LINK_${links.length - 1}__`;
         }
     );
-    newFileData = toCrLf(newFileData
+    serialized = toCrLf(serialized
         .replaceAll("pf2e", "sf2e")
         .replaceAll("-srd", "")
         .replaceAll("classfeatures", "class-features")
@@ -232,7 +208,6 @@ async function sendToSpace(packPath, file) {
         .replaceAll(badID, moduleID)
         .replaceAll("sf2e-macros", "macros")
         .replaceAll("actionssf2e", "actions"))
-        .replace(/__COMPENDIUM_LINK_(\d+)__/g, (_match, index) => compendiumLinks[Number(index)]);
-
-    await fs.writeFile(path.resolve(packPath, file), newFileData)
+        .replace(/__COMPENDIUM_LINK_(\d+)__/g, (_match, index) => links[Number(index)]);
+    await fs.writeFile(filePath, serialized);
 }
