@@ -136,9 +136,6 @@ if (!existsSync(packsCompiled)) {
 }
 
 for (const pfPack of pfPacks) {
-    const changedItems = changedPfItems.get(pfPack.name);
-    if (changedItems.size === 0) continue;
-
     const sfPack = sfPacks.find(entry => entry.name.replace(/^sf-/, "") === pfPack.name);
     if (!sfPack) {
         console.warn(`Skipping ${pfPack.name}; no matching SF2e pack exists.`);
@@ -147,16 +144,23 @@ for (const pfPack of pfPacks) {
 
     const targetPackPath = path.resolve(sfPack.path);
     await fs.mkdir(targetPackPath, { recursive: true });
+    const sourcePackItems = await getPackItems(path.resolve(pfPack.path));
+    const targetItems = await getPackItems(targetPackPath);
+    const itemsToSync = new Set(changedPfItems.get(pfPack.name));
+    for (const itemId of sourcePackItems.keys()) {
+        if (!targetItems.has(itemId)) itemsToSync.add(itemId);
+    }
+    if (itemsToSync.size === 0) continue;
+
     const tempPackRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pf2e-ac-pack-"));
     try {
         const extractedPackPath = path.join(tempPackRoot, pfPack.name);
         const compiledPackPath = path.resolve(packsCompiled, path.basename(pfPack.path));
         await extractPack(compiledPackPath, extractedPackPath);
         const sourceItems = await getPackItems(extractedPackPath);
-        const targetItems = await getPackItems(targetPackPath);
 
         let updatedItems = 0;
-        for (const itemId of changedItems) {
+        for (const itemId of itemsToSync) {
             const sourceFile = sourceItems.get(itemId);
             const targetFile = targetItems.get(itemId);
             if (sourceFile) {
