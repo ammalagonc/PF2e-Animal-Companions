@@ -10,7 +10,7 @@
   "system": {
     "description": {
       "gm": "",
-      "value": "<p>Your demon utters indescribable words writhing with their associated sin. They can cast @UUID[Compendium.pf2e-anachronism.spells.Item.sX2o0HH4RjJDAZ8C]{Divine Decree} once per day as a 9th-rank spell. You are unaffected by this decree. At 19th level, this becomes a 10th-rank divine decree instead.</p>"
+      "value": "<p>Your demon utters indescribable words writhing with their associated sin. They can cast @UUID[Compendium.sf2e.spells.Item.sX2o0HH4RjJDAZ8C]{Divine Decree} once per day as a 9th-rank spell. You are unaffected by this decree. At 19th level, this becomes a 10th-rank divine decree instead.</p>"
     },
     "rules": [],
     "slug": "blasphemous-decree",

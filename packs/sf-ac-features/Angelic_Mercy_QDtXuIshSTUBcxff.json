@@ -10,7 +10,7 @@
   "system": {
     "description": {
       "gm": "",
-      "value": "<p>Your eidolon can cast @UUID[Compendium.pf2e-anachronism.spells.Item.SUKaxVZW2TlM8lu0]{Cleanse Affliction}, @UUID[Compendium.pf2e-anachronism.spells.Item.EfFMLVbmkBWmzoLF]{Clear Mind}, and @UUID[Compendium.pf2e-anachronism.spells.Item.rfZpqmj0AIIdkVIs]{Heal} once per day each as 9th-rank divine innate spells.</p>"
+      "value": "<p>Your eidolon can cast @UUID[Compendium.sf2e.spells.Item.SUKaxVZW2TlM8lu0]{Cleanse Affliction}, @UUID[Compendium.sf2e.spells.Item.EfFMLVbmkBWmzoLF]{Clear Mind}, and @UUID[Compendium.sf2e.spells.Item.rfZpqmj0AIIdkVIs]{Heal} once per day each as 9th-rank divine innate spells.</p>"
     },
     "rules": [],
     "slug": "angelic-mercy",

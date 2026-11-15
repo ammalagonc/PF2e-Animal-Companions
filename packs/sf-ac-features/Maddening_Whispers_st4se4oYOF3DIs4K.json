@@ -8,7 +8,7 @@
       "previous": null
     },
     "description": {
-      "value": "<p>Your aberrant eidolon utters terrible secrets about the true nature of the universe. They can cast @UUID[Compendium.pf2e-anachronism.spells.Item.FmNDwqMEjeTEGPrY]{unfathomable song} once per day as an innate occult spell. Your eidolon can Sustain this spell as a free action if they spend at least one action Striding toward one of the targets.</p>",
+      "value": "<p>Your aberrant eidolon utters terrible secrets about the true nature of the universe. They can cast @UUID[Compendium.sf2e.spells.Item.FmNDwqMEjeTEGPrY]{unfathomable song} once per day as an innate occult spell. Your eidolon can Sustain this spell as a free action if they spend at least one action Striding toward one of the targets.</p>",
       "gm": ""
     },
     "publication": {
